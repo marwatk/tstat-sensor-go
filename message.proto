@@ -1,0 +1,43 @@
+syntax = "proto2";
+message SensorMsg {
+  required MessageType type = 1;
+  required DataWithHash data_with_hash = 42;
+}
+
+enum MessageType {
+  DATA = 42;
+  PAIR = 43;
+}
+
+message DataWithHash {
+  required SensorData sensor_data = 1;
+  required string hash = 2;
+}
+
+enum SensorType {
+  OUTDOOR = 1;
+  RETURN = 2;
+  REMOTE = 3;
+  SUPPLY = 4;
+}
+
+message SensorData {
+  required int32 seqNum = 1;
+  required int32 unitId = 2;
+  required string mac = 3;
+  required int32 field4 = 4;
+  required int32 field5 = 5;
+  required int32 field6 = 6;
+  required int32 field7 = 7;
+  required string sensorName = 8;
+  required SensorType sensorType = 9;
+  // 120=68F
+  // 118=66F
+  // 117=65F
+  // 115=64F
+  // 112=61
+  // 111=60
+  // 110=59F
+  required int32 temp = 10;
+  required int32 battery = 11;
+}
