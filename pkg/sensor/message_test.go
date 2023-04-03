@@ -3,6 +3,7 @@ package sensor
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,4 +28,29 @@ func TestProto(t *testing.T) {
 	}
 	assert.Equal(t, "Sensor1", *msg.DataWithHash.SensorData.SensorName, "Sensor name matches")
 	assert.NoError(t, ValidateSignature(msg, key), "Message validates")
+}
+
+func TestTempFToMsg(t *testing.T) {
+	test := func(expected int32, tempF float64) {
+		t.Run(fmt.Sprintf("%f", tempF), func(t *testing.T) {
+			assert.Equal(t, &expected, Temperature{Value: tempF}.ToMsg())
+		})
+	}
+	// Actual results from thermostat sending test values:
+	test(200, 140)
+	test(157, 101)
+	test(156, 100)
+	test(150, 95)
+	test(120, 68)
+	test(118, 66)
+	test(117, 65)
+	test(116, 64)
+	test(114, 63)
+	test(113, 62)
+	test(112, 61)
+	test(111, 60)
+	test(110, 59)
+	test(60, 14)
+	test(2, -38)
+	test(0, -40)
 }

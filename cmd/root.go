@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
@@ -12,19 +8,39 @@ import (
 	"strings"
 
 	"github.com/marwatk/tstat-sensor-go/pkg/sensor"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/proto"
 )
 
 func RootCmd() *cobra.Command {
+	var logLevel string
 	var cmd = &cobra.Command{
 		Use:   "tstat-sensor-go",
 		Short: "Simulate Wifi Temperature Sensor",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return errors.New("need subcommand")
 		},
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			switch logLevel {
+			case "error":
+				zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+			case "warn":
+				zerolog.SetGlobalLevel(zerolog.WarnLevel)
+			case "info":
+				zerolog.SetGlobalLevel(zerolog.InfoLevel)
+			case "debug":
+				zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			case "trace":
+				zerolog.SetGlobalLevel(zerolog.TraceLevel)
+			default:
+				return fmt.Errorf("invalid log-level [%s]", logLevel)
+			}
+			return nil
+		},
 	}
 
+	cmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Log level (error,warn,info,debug,trace)")
 	cmd.AddCommand(SendCmd())
 	cmd.AddCommand(DumpCmd())
 	return cmd
@@ -71,20 +87,24 @@ func DumpCmd() *cobra.Command {
 }
 
 func SendCmd() *cobra.Command {
+	var celsius bool
 	var pair bool
 	var mac string
 	var keyStr string
 	var typeStr string
 	var seqNum int
 	var unitId int
+	var addr string
 	var cmd = &cobra.Command{
-		Use:   "send <sensorName> <tempF>",
+		Use:   "send [flags] -- <sensorName> <temperature>",
 		Short: "Send a reading",
-		Args:  cobra.ExactArgs(2),
+		Long: `Send a reading. Make sure to prefix your temperature by -- 
+so that negative temps aren't treated as an errant flag`,
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			temp, err := strconv.Atoi(args[1])
+			temp, err := strconv.ParseFloat(args[1], 64)
 			if err != nil {
-				return fmt.Errorf("temperature not integer: %w", err)
+				return fmt.Errorf("temperature not float: %w", err)
 			}
 			var keyB []byte
 			if keyStr != "" {
@@ -105,10 +125,12 @@ func SendCmd() *cobra.Command {
 				return fmt.Errorf("invalid sensor type [%s]", typeStr)
 			}
 
-			return sensor.SimpleSend(temp, args[0], pair, mac, keyB, sensorType, seqNum, unitId)
+			return sensor.SimpleSend(sensor.Temperature{Value: temp, Celsius: celsius}, args[0], pair, mac, keyB, sensorType, seqNum, unitId, addr)
 		},
 	}
 
+	cmd.Flags().StringVarP(&addr, "address", "a", "255.255.255.255", "Address to send to")
+	cmd.Flags().BoolVarP(&celsius, "celsius", "c", false, "Temp is Celsius")
 	cmd.Flags().BoolVarP(&pair, "pair", "p", false, "Send as a pairing message")
 	cmd.Flags().StringVarP(&mac, "mac", "m", "", "MAC address of simulated sensor (blank will be generated from sensorName)")
 	cmd.Flags().StringVarP(&keyStr, "key", "k", "", "Signature Key (blank will be generated from sensorName)")

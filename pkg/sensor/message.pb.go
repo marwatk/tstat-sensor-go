@@ -76,6 +76,25 @@ func (MessageType) EnumDescriptor() ([]byte, []int) {
 	return file_message_proto_rawDescGZIP(), []int{0}
 }
 
+type PowerSource int32
+
+const (
+	PowerSource_BATTERY PowerSource = 1
+	PowerSource_AC PowerSource = 2
+)
+
+// Enum value maps for SensorType.
+var (
+	PowerSource_name = map[int32]string{
+		1: "BATTERY",
+		2: "AC",
+	}
+	PowerSource_value = map[string]int32{
+		"BATTERY": 1,
+		"AC":  2,
+	}
+)
+
 type SensorType int32
 
 const (
@@ -259,7 +278,7 @@ type SensorData struct {
 	Field4     *int32      `protobuf:"varint,4,req,name=field4" json:"field4,omitempty"`
 	Field5     *int32      `protobuf:"varint,5,req,name=field5" json:"field5,omitempty"`
 	Field6     *int32      `protobuf:"varint,6,req,name=field6" json:"field6,omitempty"`
-	Field7     *int32      `protobuf:"varint,7,req,name=field7" json:"field7,omitempty"`
+	PowerSource *int32 `protobuf:"varint,7,req,name=powerSource" json:"powerSource,omitempty"`
 	SensorName *string     `protobuf:"bytes,8,req,name=sensorName" json:"sensorName,omitempty"`
 	SensorType *SensorType `protobuf:"varint,9,req,name=sensorType,enum=SensorType" json:"sensorType,omitempty"`
 	Temp       *int32      `protobuf:"varint,10,req,name=temp" json:"temp,omitempty"`
@@ -340,9 +359,9 @@ func (x *SensorData) GetField6() int32 {
 	return 0
 }
 
-func (x *SensorData) GetField7() int32 {
-	if x != nil && x.Field7 != nil {
-		return *x.Field7
+func (x *SensorData) GetPowerSource() int32 {
+	if x != nil && x.PowerSource != nil {
+		return *x.PowerSource
 	}
 	return 0
 }

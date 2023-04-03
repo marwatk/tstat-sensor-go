@@ -7,13 +7,38 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 )
 
+type Temperature struct {
+	Value   float64
+	Celsius bool
+}
+
 var keyData = make(map[string][]byte)
+
+func (t Temperature) ToMsg() *int32 {
+	tempF := t.Value
+	if t.Celsius {
+		tempF = (tempF * 1.8) + 32
+	}
+	// Determined experimentally
+	raw := float64(tempF+40) / 0.9
+	rounded := int32(math.Round(raw))
+	log.Trace().
+		Float64("input", t.Value).
+		Bool("celsius", t.Celsius).
+		Float64("tempF", tempF).
+		Float64("raw", raw).
+		Int32("rounded", rounded).
+		Msg("Converting temp")
+	return &rounded
+}
 
 func DumpMessage(msg *SensorMsg) {
 	sigStatus := ""
@@ -74,8 +99,11 @@ func CalculateSignature(msg *SensorMsg, key []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-func Send(msg *SensorMsg) error {
-	addr, err := net.ResolveUDPAddr("udp", "255.255.255.255:5001")
+func Send(msg *SensorMsg, targetAddr string) error {
+	if targetAddr == "" {
+		targetAddr = "255.255.255.255"
+	}
+	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:5001", targetAddr))
 	if err != nil {
 		return fmt.Errorf("error resolving broadcast address: %w", err)
 	}
@@ -93,12 +121,8 @@ func Send(msg *SensorMsg) error {
 	if err != nil {
 		return fmt.Errorf("error writing packet: %w", err)
 	}
+	log.Trace().Stringer("msg", msg).Str("address", targetAddr).Msg("Sent message")
 	return nil
-}
-
-func FarenheitToMsg(tempF int) int {
-	// TODO
-	return tempF
 }
 
 func GenerateMAC(sensorName string) string {
@@ -123,11 +147,12 @@ func GenerateSeqNum() int {
 	return int(now.Sub(start).Seconds()) / 15
 }
 
-// BuildAndSend is a simple interface to send temp data. If pair is set
+// SimpleSend is a simple interface to send temp data. If pair is set
 // it's sent as a pairing message, otherwise a normal data packet. If mac is empty it is generated
 // from the sensorName. If key is nil it is generated fro the sensorName. If seqNum is -1 it is
-// generated based on time of day. If sensorType is nil REMOTE is assumed..
-func SimpleSend(tempF int, sensorName string, pair bool, mac string, key []byte, sensorType SensorType, seqNum int, unitId int) error {
+// generated based on time of day. If sensorType is nil REMOTE is assumed. If addr is nil
+// the broadcast address is used (this is how normal sensors work).
+func SimpleSend(temp Temperature, sensorName string, pair bool, mac string, key []byte, sensorType SensorType, seqNum int, unitId int, addr string) error {
 	if unitId < 0 || unitId > 19 {
 		return fmt.Errorf("unitId [%d] out of range (0-19)", unitId)
 	}
@@ -152,7 +177,7 @@ func SimpleSend(tempF int, sensorName string, pair bool, mac string, key []byte,
 				Mac:        &mac,
 				SensorType: &sensorType,
 				Battery:    intPointer(95),
-				Temp:       intPointer(int(FarenheitToMsg(tempF))),
+				Temp:       temp.ToMsg(),
 				SensorName: &sensorName,
 				SeqNum:     seqNumP,
 			},
@@ -172,7 +197,7 @@ func SimpleSend(tempF int, sensorName string, pair bool, mac string, key []byte,
 		sigStr := base64.StdEncoding.EncodeToString(sig)
 		msg.DataWithHash.Hash = &sigStr
 	}
-	return Send(msg)
+	return Send(msg, addr)
 }
 
 func SetUnknowns(msg *SensorMsg) {
@@ -180,7 +205,7 @@ func SetUnknowns(msg *SensorMsg) {
 	msg.DataWithHash.SensorData.Field4 = intPointer(1)
 	msg.DataWithHash.SensorData.Field5 = intPointer(9)
 	msg.DataWithHash.SensorData.Field6 = intPointer(1)
-	msg.DataWithHash.SensorData.Field7 = intPointer(1)
+	msg.DataWithHash.SensorData.PowerSource = intPointer(int(PowerSource_BATTERY))
 }
 
 func intPointer(i int) *int32 {
